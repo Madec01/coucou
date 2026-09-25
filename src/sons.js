@@ -1,22 +1,24 @@
 // Les sons : quelques bruits d'interface et d'impact de Kenney (CC0), joués par clones
 // pour pouvoir se chevaucher. Le navigateur n'accorde le son qu'après un premier geste.
 
-const FICHIERS = {
-  plouf: 'assets/audio/plouf.ogg',
-  ferrage: 'assets/audio/ferrage.ogg',
-  touche: 'assets/audio/touche.ogg',
-  prise: 'assets/audio/prise.ogg',
-  casse: 'assets/audio/casse.ogg',
-  tic: 'assets/audio/tic.ogg',
-  moulinet: 'assets/audio/moulinet.ogg',
-};
+// Chaque son existe en ogg et en mp3 : Safari ne lit pas l'ogg, on laisse le navigateur choisir.
+const NOMS = ['plouf', 'ferrage', 'touche', 'prise', 'casse', 'tic', 'moulinet'];
+
+function extension() {
+  try {
+    const a = document.createElement('audio');
+    if (a.canPlayType('audio/ogg; codecs="vorbis"')) return 'ogg';
+  } catch (e) { /* pas d'audio */ }
+  return 'mp3';
+}
 
 export class Sons {
   constructor() {
     this.elements = {};
     this.actif = true;
-    for (const [nom, src] of Object.entries(FICHIERS)) {
-      const a = new Audio(src);
+    const ext = extension();
+    for (const nom of NOMS) {
+      const a = new Audio(`assets/audio/${nom}.${ext}`);
       a.preload = 'auto';
       this.elements[nom] = a;
     }

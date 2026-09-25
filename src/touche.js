@@ -5,7 +5,7 @@ import { Partie, PORTEE_MAX, FENETRE_FERRAGE, DUREE_VOL } from './partie.js';
 import { Interprete, Calibrage } from './gestes.js';
 import { Capteurs, vibrer } from './capteurs.js';
 import { Sons } from './sons.js';
-import { Rendu, chargerImages, projeter, L, H } from './rendu.js';
+import { Rendu, chargerImages, projeter, L, H } from './lac.js';
 import { espece } from './poissons.js';
 
 const CLE_CARNET = 'touche.carnet.v1';

@@ -16,15 +16,14 @@ export class Capteurs {
   /** Demande l'accès et vérifie qu'il arrive des mesures. Renvoie 'ok', 'refuse' ou 'absent'. */
   async demander(attente = 1500) {
     if (typeof window === 'undefined' || !('DeviceMotionEvent' in window)) return 'absent';
-    for (const Ev of [window.DeviceMotionEvent, window.DeviceOrientationEvent]) {
-      if (Ev && typeof Ev.requestPermission === 'function') {
-        try {
-          const r = await Ev.requestPermission();
-          if (r !== 'granted') return 'refuse';
-        } catch (e) {
-          return 'refuse';
-        }
-      }
+    // iOS : les deux demandes doivent partir dans le même geste de l'utilisateur, donc
+    // on les lance toutes les deux avant le premier await.
+    const demandes = [window.DeviceMotionEvent, window.DeviceOrientationEvent]
+      .filter((Ev) => Ev && typeof Ev.requestPermission === 'function')
+      .map((Ev) => Ev.requestPermission().catch(() => 'denied'));
+    if (demandes.length) {
+      const reponses = await Promise.all(demandes);
+      if (reponses.some((r) => r !== 'granted')) return 'refuse';
     }
     this.ecouter();
     const depart = this.recus;

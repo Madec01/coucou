@@ -52,9 +52,9 @@ taper ou Espace pour ferrer, glisser ou flèches pour suivre, glisser vers le ha
 - `src/poissons.js` — sept espèces du pack poissons de Kenney, portée, taille, poids.
 - `src/capteurs.js` — `devicemotion` et `deviceorientation`, permission iOS, gravité retirée par
   filtre si le navigateur ne donne pas l'accélération linéaire.
-- `src/rendu.js` — le lac sur canvas : rive et poissons de Kenney, particules pour le plouf et les
+- `src/lac.js` — le lac sur canvas : rive et poissons de Kenney, particules pour le plouf et les
   bulles, ronds dans l'eau, ligne qui pend ou qui tire.
-- `src/jeu.js` — écrans, entrées de secours, HUD, carnet.
+- `src/touche.js` — écrans, entrées de secours, HUD, carnet.
 
 ## Vérifier
 

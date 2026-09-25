@@ -15,5 +15,5 @@ Le ciel, l'eau, les reflets, l'ombre des poissons et la ligne sont des dégradé
 
 ## Sons
 
-- **Interface Sounds** (plouf, ferrage, prise, casse, tic, moulinet : `assets/audio/`) — Kenney — licence CC0 1.0 — [source](https://kenney.nl/assets/interface-sounds) — [miroir utilisé](https://github.com/ETdoFresh/kenney.nl)
+- **Interface Sounds** (plouf, ferrage, prise, casse, tic, moulinet : `assets/audio/`, en ogg et en mp3 converti pour Safari) — Kenney — licence CC0 1.0 — [source](https://kenney.nl/assets/interface-sounds) — [miroir utilisé](https://github.com/ETdoFresh/kenney.nl)
 - **Impact Sounds** (la touche) — Kenney — licence CC0 1.0 — [source](https://kenney.nl/assets/impact-sounds) — [miroir utilisé](https://github.com/ETdoFresh/kenney.nl)
