@@ -24,6 +24,12 @@ de ce que le jeu sait. La progression est gardée dans le navigateur.
 Ce qui n'y est pas encore : les sons, le ressort, les étoiles « sobre » et « vite », le chapitre 2, le
 service worker. Voir `FEUILLE_DE_ROUTE.md`.
 
+## Un second prototype dans ce dépôt : Touche !
+
+Le dossier `touche/` contient un jeu de pêche au téléphone, posé ici le temps de le tester sur un vrai
+appareil : on lance d'un geste, on ferre d'un coup de poignet, on fatigue le poisson en inclinant et en
+pompant. Voir `touche/README.md`. Il a vocation à vivre dans son propre dépôt.
+
 ## Jouer
 
 Le jeu est un site statique : aucune installation, aucune compilation, aucune dépendance.

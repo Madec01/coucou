@@ -32,3 +32,12 @@
 | 13 | Le souffle | Le vent pousse d'autant plus que l'objet est léger, jusqu'à un seuil | à faire |
 | 14 | **La publication** | Rédiger la loi du chapitre au tableau noir, confrontée à toutes les mesures du Carnet ; si elle tient, l'aile suivante s'ouvre | à faire |
 | 15 | **Le fil rouge** | Pourquoi ces lois, et qui était là avant | à faire |
+
+## Touche ! (dossier `touche/`)
+
+| # | Étape | Statut |
+|---|---|---|
+| T1 | Prototype : lancer, ferrer, combat au geste, secours toucher et clavier | **fait** |
+| T2 | Tester sur un vrai téléphone (iPhone et Android) : seuils de lancer et de pompage, permission iOS, vibration | **à faire** |
+| T3 | Déplacer dans son propre dépôt une fois le geste validé | à faire |
+| T4 | Enrichir : heures et météo qui changent les espèces, plusieurs postes de pêche, un moulinet à sonoriser, la ligne qui se tend visuellement | à faire |
