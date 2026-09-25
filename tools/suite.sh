@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # La suite de tests d'Eurêka, en deux vitesses :
-#   tools/suite.sh court    — les tests Node (moteur, expériences) et le test de fumée navigateur
+#   tools/suite.sh court    — les tests Node (Eurêka et Touche) et les deux tests de fumée navigateur
 #   tools/suite.sh complet  — pareil, plus une capture de chaque expérience dans docs/releve/
 # Le script lance lui-même le serveur statique du port 8765 s'il manque.
 set -euo pipefail
@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 MODE="${1:-court}"
 
 echo "== Tests Node"
-node --test tests/*.test.js
+node --test tests/*.test.js touche/tests/*.test.js
 
 if ! curl -s -o /dev/null http://localhost:8765/; then
   echo "== Serveur statique sur 8765"
@@ -20,10 +20,12 @@ fi
 
 echo "== Fumée navigateur"
 node tests/gate.js http://localhost:8765/
+node touche/tests/gate.js http://localhost:8765/touche/
 
 if [ "$MODE" = "complet" ]; then
   echo "== Captures"
   mkdir -p docs/releve
   node tools/capture.js docs/releve
+  node touche/capture.js docs/releve
 fi
 echo "== Suite $MODE : tout est passé."
