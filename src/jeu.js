@@ -1,525 +1,421 @@
-// Eurêka — l'orchestration : le courrier, le montage, le tableau noir, le lancement,
-// la lecture, le Carnet. Un seul état, une seule fonction de rendu des panneaux.
+// Touche ! — l'orchestration : les écrans, les capteurs (ou le toucher et le clavier en
+// secours), la partie, le rendu, le carnet de pêche.
 
-import { EXPERIENCES, experience, reglagesParDefaut, jouer } from './experiences.js';
-import { LOIS } from './lois.js';
-import { evaluer, nombre, BLOCS } from './formule.js';
-import { Rendu, chargerImages } from './rendu.js';
-import { IMAGES_PAR_SECONDE } from './moteur.js';
+import { Partie, PORTEE_MAX, FENETRE_FERRAGE, DUREE_VOL } from './partie.js';
+import { Interprete, Calibrage } from './gestes.js';
+import { Capteurs, vibrer } from './capteurs.js';
+import { Sons } from './sons.js';
+import { Rendu, chargerImages, projeter, L, H } from './rendu.js';
+import { espece } from './poissons.js';
 
-const CLE_SAUVEGARDE = 'eureka.progression.v1';
-
+const CLE_CARNET = 'touche.carnet.v1';
+const CLE_SEUIL = 'touche.seuil.v1';
 const $ = (s) => document.querySelector(s);
 
 const etat = {
-  exp: null,
-  reglages: {},
-  prediction: null,          // pointer: nombre ; chiffre: nombre ; choix: id ; mesures: { rouge, bleu }
-  jetons: [],                // la formule du tableau noir
-  grandeurs: {},             // h, t… mesurés au dernier lancement
-  lancements: 0,
-  trace: null,
-  lecture: null,             // { t, vitesse, pause, fini }
-  fantome: null,             // trajectoire du lancement précédent
-  resultat: null,
-  progression: charger(),
+  mode: null,           // 'capteurs' | 'secours'
+  ecran: 'accueil',
+  partie: new Partie(),
+  interprete: new Interprete(),
+  calibrage: new Calibrage(3),
+  capteurs: new Capteurs(),
+  sons: new Sons(),
+  rendu: null,
+  carnet: charger(),
+  vol: null,
+  flotteur: { d: 0, x: 0, plongee: 0, agitation: false },
+  poissonVisuel: null,
+  derniereImage: 0,
+  message: '',
+  messageJusqua: 0,
+  charge: null,         // secours : appui maintenu pour lancer
 };
 
-let rendu;
-let monde;
-
-// ---------------------------------------------------------------- sauvegarde
+// ---------------------------------------------------------------- carnet
 
 function charger() {
-  try {
-    const brut = localStorage.getItem(CLE_SAUVEGARDE);
-    if (brut) return JSON.parse(brut);
-  } catch (e) { /* stockage indisponible : on joue sans mémoire */ }
-  return { faites: {}, carnet: [] };
+  try { const b = localStorage.getItem(CLE_CARNET); if (b) return JSON.parse(b); } catch (e) { /* rien */ }
+  return { prises: [], records: {} };
 }
+function sauver() { try { localStorage.setItem(CLE_CARNET, JSON.stringify(etat.carnet)); } catch (e) { /* rien */ } }
 
-function sauver() {
-  try { localStorage.setItem(CLE_SAUVEGARDE, JSON.stringify(etat.progression)); } catch (e) { /* idem */ }
-}
-
-function estDebloquee(exp) {
-  const i = EXPERIENCES.indexOf(exp);
-  return i === 0 || !!etat.progression.faites[EXPERIENCES[i - 1].id];
-}
-
-// ---------------------------------------------------------------- expérience
-
-function choisir(id) {
-  const exp = experience(id);
-  if (!exp || !estDebloquee(exp)) return;
-  etat.exp = exp;
-  etat.reglages = reglagesParDefaut(exp);
-  etat.prediction = exp.prediction.type === 'pointer' ? etat.reglages[exp.prediction.reglage] : exp.prediction.type === 'mesures' ? {} : null;
-  etat.jetons = [];
-  etat.grandeurs = {};
-  etat.lancements = 0;
-  etat.trace = null;
-  etat.lecture = null;
-  etat.fantome = null;
-  etat.resultat = null;
-  reconstruire();
-  afficherTout();
-}
-
-function reconstruire() {
-  monde = etat.exp.monde(etat.reglages);
-}
-
-function afficherTout() {
-  afficherNavigation();
-  afficherCourrier();
-  afficherMontage();
-  afficherTableau();
-  afficherBudget();
-  afficherResultat();
+function noter(poisson) {
+  const prise = { espece: poisson.espece, nom: poisson.nom, taille: poisson.taille, poids: poisson.poids, date: new Date().toISOString() };
+  etat.carnet.prises.push(prise);
+  const r = etat.carnet.records[poisson.espece];
+  const record = !r || poisson.taille > r.taille;
+  if (record) etat.carnet.records[poisson.espece] = { taille: poisson.taille, poids: poisson.poids };
+  sauver();
   afficherCarnet();
-  dessiner();
-}
-
-// ---------------------------------------------------------------- panneaux
-
-function afficherNavigation() {
-  const nav = $('#experiences');
-  nav.innerHTML = '';
-  for (const exp of EXPERIENCES) {
-    const b = document.createElement('button');
-    const faite = etat.progression.faites[exp.id];
-    const ouverte = estDebloquee(exp);
-    b.className = 'exp' + (exp === etat.exp ? ' active' : '') + (faite ? ' faite' : '') + (ouverte ? '' : ' fermee');
-    b.disabled = !ouverte;
-    b.innerHTML = `<span class="num">${exp.numero}</span><span class="nom">${exp.titre}</span>${faite ? '<img class="ico" src="assets/img/ui/checkmark.png" alt="terminée">' : ouverte ? '' : '<img class="ico" src="assets/img/ui/locked.png" alt="verrouillée">'}`;
-    b.addEventListener('click', () => choisir(exp.id));
-    nav.appendChild(b);
-  }
-}
-
-function afficherCourrier() {
-  const { lettre } = etat.exp;
-  $('#courrier').innerHTML = `
-    <h2>Expérience ${etat.exp.numero} — ${etat.exp.titre}</h2>
-    <p class="de">De : ${lettre.de}</p>
-    <p class="texte">${lettre.texte}</p>
-    <p class="objectif"><img src="assets/img/ui/target.png" alt=""> ${lettre.objectif}</p>`;
-}
-
-function afficherMontage() {
-  const s = $('#montage');
-  s.innerHTML = '<h2><img src="assets/img/ui/wrench.png" alt=""> Montage</h2>';
-  for (const g of etat.exp.reglages) {
-    const ligne = document.createElement('label');
-    ligne.className = 'reglage';
-    if (g.type === 'plage') {
-      ligne.innerHTML = `<span class="libelle">${g.libelle}</span>
-        <input type="range" min="${g.min}" max="${g.max}" step="${g.pas}" value="${etat.reglages[g.id]}" data-reglage="${g.id}">
-        <output>${nombre(etat.reglages[g.id], 2)} ${g.unite}</output>`;
-      const input = ligne.querySelector('input');
-      input.addEventListener('input', () => {
-        etat.reglages[g.id] = parseFloat(input.value);
-        ligne.querySelector('output').textContent = `${nombre(etat.reglages[g.id], 2)} ${g.unite}`;
-        if (etat.exp.prediction.type === 'pointer' && etat.exp.prediction.reglage === g.id) etat.prediction = etat.reglages[g.id];
-        reconstruire();
-        dessiner();
-        afficherLancer();
-      });
-    } else if (g.type === 'choix') {
-      ligne.innerHTML = `<span class="libelle">${g.libelle}</span><span class="choix"></span>`;
-      const c = ligne.querySelector('.choix');
-      for (const o of g.options) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = o.libelle;
-        b.className = 'pastille ' + o.id + (etat.reglages[g.id] === o.id ? ' active' : '');
-        b.addEventListener('click', () => {
-          etat.reglages[g.id] = o.id;
-          reconstruire();
-          afficherMontage();
-          dessiner();
-        });
-        c.appendChild(b);
-      }
-    }
-    s.appendChild(ligne);
-  }
-  if (etat.exp.reglages.some((g) => g.deplacable)) {
-    const p = document.createElement('p');
-    p.className = 'aide';
-    p.textContent = 'Tu peux aussi glisser le bécher directement sur la paillasse.';
-    s.appendChild(p);
-  }
-}
-
-function afficherTableau() {
-  const s = $('#tableau');
-  const p = etat.exp.prediction;
-  s.innerHTML = `<h2>Tableau noir</h2><p class="consigne">${p.libelle}</p>`;
-  if (p.type === 'pointer') {
-    const out = document.createElement('p');
-    out.className = 'valeur';
-    out.id = 'tableau-pointer';
-    out.textContent = `Bécher à ${nombre(etat.prediction, 2)} m`;
-    s.appendChild(out);
-  } else if (p.type === 'chiffre') {
-    const ligne = document.createElement('label');
-    ligne.className = 'saisie';
-    ligne.innerHTML = `<input type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00" id="tableau-chiffre"> <span>${p.unite}</span>`;
-    const input = ligne.querySelector('input');
-    if (etat.prediction !== null) input.value = etat.prediction;
-    input.addEventListener('input', () => {
-      const v = parseFloat(String(input.value).replace(',', '.'));
-      etat.prediction = Number.isFinite(v) ? v : null;
-      afficherLancer();
-    });
-    s.appendChild(ligne);
-  } else if (p.type === 'choix') {
-    const c = document.createElement('div');
-    c.className = 'choix';
-    for (const o of p.options) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = o.libelle;
-      b.className = 'pastille ' + o.id + (etat.prediction === o.id ? ' active' : '');
-      b.addEventListener('click', () => { etat.prediction = o.id; afficherTableau(); afficherLancer(); });
-      c.appendChild(b);
-    }
-    s.appendChild(c);
-  } else if (p.type === 'mesures') {
-    afficherFormule(s);
-    const champs = document.createElement('div');
-    champs.className = 'champs';
-    for (const c of p.champs) {
-      const ligne = document.createElement('label');
-      ligne.className = 'saisie';
-      ligne.innerHTML = `<span class="libelle">${c.libelle}</span><input type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00" data-champ="${c.id}"> <span>${p.unite}</span>`;
-      const input = ligne.querySelector('input');
-      if (etat.prediction[c.id] !== undefined) input.value = etat.prediction[c.id];
-      input.addEventListener('input', () => {
-        const v = parseFloat(String(input.value).replace(',', '.'));
-        if (Number.isFinite(v)) etat.prediction[c.id] = v; else delete etat.prediction[c.id];
-        afficherLancer();
-      });
-      champs.appendChild(ligne);
-    }
-    s.appendChild(champs);
-    const publier = document.createElement('button');
-    publier.id = 'publier';
-    publier.className = 'principal';
-    publier.textContent = 'Publier les deux valeurs';
-    publier.addEventListener('click', publierReponse);
-    s.appendChild(publier);
-  }
-  afficherLancer();
-}
-
-/** Le tableau noir à blocs : on assemble une formule, elle s'évalue sur les mesures. */
-function afficherFormule(s) {
-  const bloc = document.createElement('div');
-  bloc.className = 'formule';
-  const g = etat.exp.grandeurs ? etat.exp.grandeurs(etat.reglages, etat.grandeurs) : {};
-  const ev = evaluer(etat.jetons, g);
-  bloc.innerHTML = `
-    <p class="mesures-dispo">Mesuré : h = <b>${nombre(g.h, 1)} m</b>, t = <b>${g.t === undefined ? '— (lance une bille)' : nombre(g.t, 3) + ' s'}</b></p>
-    <div class="ardoise" id="ardoise">${etat.jetons.length ? etat.jetons.map((j) => `<span class="jeton">${j}</span>`).join('') : '<span class="vide">Assemble ta formule avec les blocs.</span>'}
-      <span class="egal">= ${ev.valeur !== undefined ? nombre(ev.valeur, 2) : '?'}</span></div>
-    <div class="blocs"></div>
-    <p class="erreur">${ev.erreur && etat.jetons.length ? ev.erreur : ''}</p>
-    <div class="actions"></div>`;
-  const blocs = bloc.querySelector('.blocs');
-  const ajouter = (j, classe) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'bloc ' + classe; b.textContent = j;
-    b.addEventListener('click', () => { etat.jetons.push(j); afficherTableau(); });
-    blocs.appendChild(b);
-  };
-  BLOCS.grandeurs.filter((j) => j in g).forEach((j) => ajouter(j, 'grandeur'));
-  BLOCS.nombres.forEach((j) => ajouter(j, 'nombre'));
-  BLOCS.operateurs.forEach((j) => ajouter(j, 'operateur'));
-  const effacer = document.createElement('button');
-  effacer.type = 'button'; effacer.className = 'bloc effacer'; effacer.textContent = '⌫';
-  effacer.title = 'Effacer le dernier bloc';
-  effacer.addEventListener('click', () => { etat.jetons.pop(); afficherTableau(); });
-  blocs.appendChild(effacer);
-  const actions = bloc.querySelector('.actions');
-  if (ev.valeur !== undefined) {
-    for (const c of etat.exp.prediction.champs) {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'secondaire';
-      b.textContent = `→ ${c.libelle}`;
-      b.addEventListener('click', () => { etat.prediction[c.id] = Math.round(ev.valeur * 100) / 100; afficherTableau(); });
-      actions.appendChild(b);
-    }
-  }
-  s.appendChild(bloc);
-}
-
-function predictionPrete() {
-  const p = etat.exp.prediction;
-  if (p.type === 'pointer') return true;
-  if (p.type === 'chiffre') return Number.isFinite(etat.prediction);
-  if (p.type === 'choix') return !!etat.prediction;
-  if (p.type === 'mesures') return true; // ici un lancement est une mesure, sans prédiction
-  return false;
-}
-
-function budgetEpuise() { return etat.lancements >= etat.exp.budget; }
-
-function afficherLancer() {
-  const b = $('#lancer');
-  const enLecture = etat.lecture && !etat.lecture.fini;
-  b.disabled = enLecture || !predictionPrete() || budgetEpuise() || !!etat.progression.faites[etat.exp.id] && etat.resultat && etat.resultat.reussi;
-  b.textContent = budgetEpuise() ? 'Budget épuisé' : etat.exp.prediction.type === 'mesures' ? 'Lancer (mesurer)' : 'Lancer';
-  const pub = $('#publier');
-  if (pub) {
-    const p = etat.exp.prediction;
-    pub.disabled = enLecture || budgetEpuise() || !p.champs.every((c) => Number.isFinite(etat.prediction[c.id]));
-  }
-}
-
-function afficherBudget() {
-  const restant = etat.exp.budget - etat.lancements;
-  $('#budget').innerHTML = `Lancements : <b>${restant}</b> / ${etat.exp.budget}`;
-  $('#budget').className = restant <= 1 ? 'alerte' : '';
-}
-
-function afficherResultat() {
-  const s = $('#resultat');
-  const r = etat.resultat;
-  if (!r) { s.hidden = true; s.innerHTML = ''; return; }
-  s.hidden = false;
-  const lignes = Object.entries(r.mesures || {}).map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
-  const titre = r.reussi ? 'Expérience terminée' : r.mesure ? 'Mesure' : 'Lecture';
-  const classe = r.reussi ? 'reussi' : r.mesure ? 'mesure' : 'rate';
-  s.className = 'panneau resultat ' + classe;
-  s.innerHTML = `<h2>${titre}</h2><p class="message">${r.message}</p><table>${lignes}</table><div class="actions"></div>`;
-  const actions = s.querySelector('.actions');
-  const suivante = EXPERIENCES[EXPERIENCES.indexOf(etat.exp) + 1];
-  if (r.reussi) {
-    const infos = document.createElement('p');
-    infos.className = 'bilan';
-    infos.innerHTML = `${etat.lancements} lancement${etat.lancements > 1 ? 's' : ''}${r.premierCoup ? ' — <b>du premier coup</b>' : ''}. Une page s’ajoute au Carnet.`;
-    s.insertBefore(infos, actions);
-    if (suivante) {
-      const b = document.createElement('button');
-      b.className = 'principal';
-      b.textContent = `Expérience suivante : ${suivante.titre}`;
-      b.addEventListener('click', () => choisir(suivante.id));
-      actions.appendChild(b);
-    } else {
-      const p = document.createElement('p');
-      p.innerHTML = 'Le chapitre 1 est terminé. La suite s’écrit dans <b>FEUILLE_DE_ROUTE.md</b>.';
-      actions.appendChild(p);
-    }
-  } else if (budgetEpuise()) {
-    const b = document.createElement('button');
-    b.className = 'principal';
-    b.textContent = 'Recommencer l’expérience';
-    b.addEventListener('click', () => choisir(etat.exp.id));
-    actions.appendChild(b);
-  } else {
-    const b = document.createElement('button');
-    b.className = 'secondaire';
-    b.textContent = r.mesure ? 'Nouvelle mesure' : 'Corriger et relancer';
-    b.addEventListener('click', () => { etat.resultat = null; etat.lecture = null; afficherResultat(); afficherLancer(); dessiner(); });
-    actions.appendChild(b);
-  }
+  return record;
 }
 
 function afficherCarnet() {
+  const c = etat.carnet;
   const s = $('#carnet');
-  const pages = etat.progression.carnet;
-  s.innerHTML = `<h2>Carnet de laboratoire <small>${pages.length} page${pages.length > 1 ? 's' : ''}</small></h2>`;
-  if (!pages.length) {
-    s.innerHTML += '<p class="vide">Rien encore. Chaque expérience terminée écrit une page ici — avec tes mesures, pas celles du jeu.</p>';
-    return;
+  const n = c.prises.length;
+  s.innerHTML = `<h2>Carnet de pêche <small>${n} prise${n > 1 ? 's' : ''}</small></h2>`;
+  const ids = Object.keys(c.records);
+  if (!ids.length) { s.innerHTML += '<p class="vide">Rien encore. Chaque poisson ramené s’inscrit ici, avec son record.</p>'; return; }
+  const ul = document.createElement('ul');
+  for (const id of ids) {
+    const e = espece(id); const r = c.records[id];
+    const li = document.createElement('li');
+    li.innerHTML = `<img src="assets/img/poissons/${e.tuiles[0]}.png" alt=""><span>${e.nom}</span><b>${r.taille} cm · ${fr(r.poids, 1)} kg</b>`;
+    ul.appendChild(li);
   }
-  for (const p of [...pages].reverse()) {
-    const art = document.createElement('article');
-    art.className = 'page';
-    art.innerHTML = `<h3>${p.numero}. ${p.titre}</h3><p>${p.texte}</p><p class="meta">${p.date} — ${p.lancements} lancement${p.lancements > 1 ? 's' : ''}${p.premierCoup ? ', du premier coup' : ''}</p>`;
-    s.appendChild(art);
-  }
+  s.appendChild(ul);
 }
 
-// ---------------------------------------------------------------- lancement
+function fr(v, d = 1) { return Number(v).toFixed(d).replace('.', ','); }
 
-function lancer() {
-  if (!predictionPrete() || budgetEpuise()) return;
-  etat.lancements += 1;
-  const p = etat.exp.prediction;
-  const prediction = p.type === 'pointer' ? etat.reglages[p.reglage] : etat.prediction;
-  reconstruire();
-  etat.trace = jouer(etat.exp, etat.reglages);
-  etat.resultat = null;
-  etat.lecture = { t: 0, vitesse: 1, pause: false, fini: false, prediction, derniere: performance.now() };
-  afficherBudget();
-  afficherLancer();
-  afficherResultat();
-  $('#lecture-controles').hidden = false;
-  requestAnimationFrame(boucle);
+// ---------------------------------------------------------------- écrans
+
+function montrer(ecran) {
+  etat.ecran = ecran;
+  for (const e of document.querySelectorAll('[data-ecran]')) e.hidden = e.dataset.ecran !== ecran;
 }
 
-function boucle(maintenant) {
-  const l = etat.lecture;
-  if (!l || l.fini) return;
-  const dt = Math.min(0.1, (maintenant - l.derniere) / 1000);
-  l.derniere = maintenant;
-  if (!l.pause) l.t += dt * l.vitesse;
-  if (l.t >= etat.trace.duree) { l.t = etat.trace.duree; terminerLecture(); return; }
-  dessiner();
-  requestAnimationFrame(boucle);
+function dire(texte, duree = 2.5) {
+  etat.message = texte;
+  etat.messageJusqua = performance.now() + duree * 1000;
+  $('#message').textContent = texte;
+  $('#message').classList.add('visible');
 }
 
-function terminerLecture() {
-  const l = etat.lecture;
-  l.fini = true;
-  $('#lecture-controles').hidden = true;
-  const exp = etat.exp;
-  const r = exp.juger(etat.reglages, l.prediction, etat.trace);
-  if (r.grandeurs) Object.assign(etat.grandeurs, r.grandeurs);
-  // Le fantôme : la trajectoire du premier corps, pour comparer au prochain lancement.
-  etat.fantome = etat.trace.images.map((i) => ({ x: i.corps[0].x, y: i.corps[0].y }));
-  conclure(r);
-}
+function consigne(texte) { $('#consigne').textContent = texte; }
 
-function publierReponse() {
-  if (budgetEpuise()) return;
-  const r = etat.exp.jugerReponse(etat.prediction, LOIS);
-  if (!r.reussi) etat.lancements += 1;
-  afficherBudget();
-  conclure(r);
-}
-
-function conclure(r) {
-  r.premierCoup = etat.lancements === 1;
-  etat.resultat = r;
-  if (r.reussi && !etat.progression.faites[etat.exp.id]) {
-    const page = {
-      id: etat.exp.id, numero: etat.exp.numero, titre: etat.exp.titre,
-      texte: etat.exp.carnet(r), date: new Date().toLocaleDateString('fr-FR'),
-      lancements: etat.lancements, premierCoup: r.premierCoup,
-    };
-    etat.progression.faites[etat.exp.id] = { lancements: etat.lancements, premierCoup: r.premierCoup };
-    etat.progression.carnet.push(page);
-    sauver();
-    afficherNavigation();
-    afficherCarnet();
-  }
-  afficherResultat();
-  afficherLancer();
-  if (etat.exp.prediction.type === 'mesures') afficherTableau();
-  dessiner();
-}
-
-// ---------------------------------------------------------------- dessin
-
-function imageCourante() {
-  if (!etat.trace || !etat.lecture) return null;
-  const i = Math.min(etat.trace.images.length - 1, Math.floor(etat.lecture.t * IMAGES_PAR_SECONDE));
-  return etat.trace.images[i];
-}
-
-function dessiner() {
-  if (!rendu || !monde) return;
-  const options = {};
-  const image = imageCourante();
-  if (image) {
-    options.image = image;
-    const idx = etat.trace.images.indexOf(image);
-    options.trainee = etat.trace.images.slice(Math.max(0, idx - 24), idx + 1).map((i) => ({ x: i.corps[0].x, y: i.corps[0].y }));
-    if (monde.chrono) {
-      const ci = monde.corps.findIndex((c) => c.id === monde.chrono);
-      const contact = etat.trace.evenements.find((e) => e.type === 'contact' && e.corps === monde.chrono && e.sol);
-      const tc = contact ? contact.t : etat.trace.duree;
-      options.chrono = { t: Math.min(etat.lecture.t, tc), fige: etat.lecture.t >= tc };
-      const jusqu = etat.trace.images.slice(0, idx + 1).filter((i) => i.t <= tc + 0.05);
-      options.courbe = {
-        points: jusqu.map((i) => ({ t: i.t, h: Math.max(0, i.corps[ci].y - monde.corps[ci].r) })),
-        tMax: Math.max(0.5, tc * 1.05), hMax: Math.max(1, monde.corps[ci].y),
-      };
+async function prendreLaCanne() {
+  $('#prendre').disabled = true;
+  $('#prendre').textContent = 'Un instant…';
+  const r = await etat.capteurs.demander();
+  if (r === 'ok') {
+    etat.mode = 'capteurs';
+    etat.capteurs.abonner(recevoirEchantillon);
+    const seuil = Number(localStorage.getItem(CLE_SEUIL) || 0);
+    if (seuil > 0) {
+      etat.interprete.reglerSeuilFerrage(seuil);
+      commencer();
+    } else {
+      montrer('calibrage');
+      $('#calibrage-compte').textContent = '0 / 3';
     }
-  } else if (etat.fantome) {
-    options.fantome = etat.fantome;
+  } else {
+    etat.mode = 'secours';
+    $('#mode').textContent = r === 'refuse'
+      ? 'Capteurs refusés : on joue au toucher (ou au clavier).'
+      : 'Pas de capteurs ici : on joue au toucher (ou au clavier).';
+    commencer();
   }
-  rendu.dessiner(monde, options);
 }
 
-// ---------------------------------------------------------------- pointeur
+function commencer() {
+  montrer('jeu');
+  $('#mode').hidden = etat.mode !== 'secours';
+  etat.partie.reprendre();
+  etat.partie.etat = 'pret';
+  consigneSelonEtat();
+  afficherCarnet();
+}
 
-function installerPointeur(canvas) {
-  let glisse = null;
+function consigneSelonEtat() {
+  const p = etat.partie;
+  const c = etat.mode === 'capteurs';
+  switch (p.etat) {
+    case 'pret': consigne(c ? 'Balance le téléphone vers l’avant pour lancer.' : 'Maintiens le doigt (ou Espace) pour charger, relâche pour lancer.'); break;
+    case 'vol': consigne('…'); break;
+    case 'attente': consigne('Attends. Regarde le flotteur.'); break;
+    case 'touche': consigne(c ? 'FERRE ! Un coup de poignet !' : 'FERRE ! Tape l’écran (ou Espace) !'); break;
+    case 'combat': consigne(c ? 'Incline vers où il part. Quand il se calme, lève puis rabaisse pour pomper.' : 'Glisse vers où il part. Quand il se calme, glisse vers le haut (ou ↑) pour pomper.'); break;
+    default: consigne(''); break;
+  }
+}
+
+// ---------------------------------------------------------------- entrées : capteurs
+
+function recevoirEchantillon(e) {
+  const gestes = etat.interprete.alimenter(e);
+  for (const g of gestes) {
+    if (etat.ecran === 'calibrage') {
+      if (g.type === 'ferrer') {
+        etat.calibrage.ajouter(g.pic);
+        etat.sons.jouer('tic');
+        vibrer(30);
+        $('#calibrage-compte').textContent = `${etat.calibrage.pics.length} / 3`;
+        if (etat.calibrage.fait) {
+          const seuil = etat.calibrage.seuil();
+          etat.interprete.reglerSeuilFerrage(seuil);
+          try { localStorage.setItem(CLE_SEUIL, String(seuil)); } catch (err) { /* rien */ }
+          $('#calibrage-seuil').textContent = `Seuil réglé : ${seuil} °/s.`;
+          setTimeout(commencer, 900);
+        }
+      }
+      continue;
+    }
+    if (etat.ecran !== 'jeu') continue;
+    appliquerGeste(g);
+  }
+}
+
+function appliquerGeste(g) {
+  const p = etat.partie;
+  if (g.type === 'lancer' && p.etat === 'pret') lancer(g.puissance);
+  else if (g.type === 'ferrer') ferrer();
+  else if (g.type === 'pomper' && p.etat === 'combat') p.pomper();
+  else if (g.type === 'suivi') p.suivre(g.valeur);
+}
+
+// ---------------------------------------------------------------- entrées : secours
+
+function installerSecours(canvas) {
+  let appui = null;
   canvas.addEventListener('pointerdown', (ev) => {
-    const g = etat.exp && etat.exp.reglages.find((r) => r.deplacable);
-    if (!g || (etat.lecture && !etat.lecture.fini)) return;
-    const m = rendu.versMetres(ev);
-    const d = monde.dessins.find((x) => x.type === 'becher');
-    if (d && Math.abs(m.x - d.x) < d.largeur && m.y < d.hauteur + 0.5) {
-      glisse = { reglage: g, decalage: d.x - m.x };
-      canvas.setPointerCapture(ev.pointerId);
-    }
+    if (etat.ecran !== 'jeu') return;
+    appui = { x: ev.clientX, y: ev.clientY, t: performance.now(), pompe: false };
+    if (etat.partie.etat === 'pret' && etat.mode === 'secours') etat.charge = { depuis: performance.now() };
+    canvas.setPointerCapture(ev.pointerId);
   });
   canvas.addEventListener('pointermove', (ev) => {
-    if (!glisse) return;
-    const m = rendu.versMetres(ev);
-    const g = glisse.reglage;
-    let v = Math.round((m.x + glisse.decalage) / g.pas) * g.pas;
-    v = Math.max(g.min, Math.min(g.max, v));
-    etat.reglages[g.id] = v;
-    if (etat.exp.prediction.type === 'pointer') etat.prediction = v;
-    const input = document.querySelector(`input[data-reglage="${g.id}"]`);
-    if (input) { input.value = v; input.parentElement.querySelector('output').textContent = `${nombre(v, 2)} ${g.unite}`; }
-    const out = $('#tableau-pointer');
-    if (out) out.textContent = `Bécher à ${nombre(v, 2)} m`;
-    reconstruire();
-    dessiner();
+    if (!appui) return;
+    const dx = ev.clientX - appui.x, dy = ev.clientY - appui.y;
+    const p = etat.partie;
+    if (p.etat === 'combat') {
+      p.suivre(dx / 120);
+      if (dy < -80 && !appui.pompe) { appui.pompe = true; p.pomper(); }
+    }
   });
-  const fin = () => { glisse = null; };
+  const fin = (ev) => {
+    if (!appui) return;
+    const duree = performance.now() - appui.t;
+    const p = etat.partie;
+    if (p.etat === 'pret' && etat.charge) {
+      lancer(Math.min(1, (performance.now() - etat.charge.depuis) / 1500));
+    } else if ((p.etat === 'touche' || p.etat === 'attente') && duree < 300) {
+      ferrer();
+    } else if (['prise', 'casse', 'rate', 'decroche'].includes(p.etat) && duree < 300) {
+      reprendre();
+    }
+    if (p.etat === 'combat') p.suivre(0);
+    etat.charge = null;
+    appui = null;
+  };
   canvas.addEventListener('pointerup', fin);
   canvas.addEventListener('pointercancel', fin);
+
+  window.addEventListener('keydown', (ev) => {
+    if (etat.ecran !== 'jeu' || ev.repeat) return;
+    const p = etat.partie;
+    if (ev.code === 'Space') {
+      ev.preventDefault();
+      if (p.etat === 'pret') etat.charge = etat.charge || { depuis: performance.now() };
+      else if (p.etat === 'touche' || p.etat === 'attente') ferrer();
+      else if (p.etat === 'combat') p.pomper();
+      else reprendre();
+    }
+    if (ev.code === 'ArrowUp' && p.etat === 'combat') p.pomper();
+    if (ev.code === 'ArrowLeft') p.suivre(-1);
+    if (ev.code === 'ArrowRight') p.suivre(1);
+  });
+  window.addEventListener('keyup', (ev) => {
+    const p = etat.partie;
+    if (ev.code === 'Space' && p.etat === 'pret' && etat.charge) {
+      lancer(Math.min(1, (performance.now() - etat.charge.depuis) / 1500));
+      etat.charge = null;
+    }
+    if (ev.code === 'ArrowLeft' || ev.code === 'ArrowRight') p.suivre(0);
+  });
 }
 
-// ---------------------------------------------------------------- lecture
+// ---------------------------------------------------------------- actions
 
-function installerLecture() {
-  $('#lecture-pause').addEventListener('click', () => {
-    if (!etat.lecture) return;
-    etat.lecture.pause = !etat.lecture.pause;
-    $('#lecture-pause').classList.toggle('active', etat.lecture.pause);
-  });
-  $('#lecture-ralenti').addEventListener('click', () => {
-    if (!etat.lecture) return;
-    etat.lecture.vitesse = etat.lecture.vitesse === 1 ? 0.25 : 1;
-    $('#lecture-ralenti').classList.toggle('active', etat.lecture.vitesse !== 1);
-  });
-  $('#lecture-fin').addEventListener('click', () => {
-    if (!etat.lecture || etat.lecture.fini) return;
-    etat.lecture.t = etat.trace.duree;
-    terminerLecture();
-  });
+function lancer(puissance) {
+  const p = etat.partie;
+  if (!p.lancer(puissance)) return;
+  etat.sons.jouer('moulinet', 0.5);
+  const depart = etat.rendu.boutDeCanne || { x: L - 100, y: H - 300 };
+  const x = (Math.random() - 0.5) * 160;
+  etat.flotteur = { d: p.portee, x, plongee: 0, agitation: false };
+  etat.vol = { u: 0, depart, arrivee: projeter(p.portee, PORTEE_MAX, x) };
+  consigneSelonEtat();
+}
+
+function ferrer() {
+  const p = etat.partie;
+  const avant = p.etat;
+  const ok = p.ferrer();
+  if (ok) {
+    etat.sons.jouer('ferrage');
+    vibrer([40, 60, 40]);
+  } else if (avant === 'attente') {
+    dire('Trop tôt ! Il se méfie…', 1.8);
+    etat.sons.jouer('tic', 0.4);
+  }
+}
+
+function reprendre() {
+  if (etat.partie.reprendre()) {
+    etat.flotteur = null;
+    etat.poissonVisuel = null;
+    $('#bilan').hidden = true;
+    consigneSelonEtat();
+  }
+}
+
+// ---------------------------------------------------------------- boucle
+
+function boucle(maintenant) {
+  const dt = Math.min(0.05, (maintenant - etat.derniereImage) / 1000 || 0.016);
+  etat.derniereImage = maintenant;
+  const p = etat.partie;
+  const rendu = etat.rendu;
+
+  if (etat.ecran === 'jeu') {
+    p.avancer(dt);
+    for (const e of p.purger()) traiterEvenement(e);
+    if (etat.vol) {
+      etat.vol.u = Math.min(1, etat.vol.u + dt / DUREE_VOL);
+      if (etat.vol.u >= 1) etat.vol = null;
+    }
+    if (p.etat === 'touche') etat.flotteur.plongee = 1;
+    else if (etat.flotteur) etat.flotteur.plongee = Math.max(0, etat.flotteur.plongee - dt * 3);
+    if (etat.flotteur) etat.flotteur.agitation = etat.flotteur.agitation && (etat.flotteur.agitationJusqua > maintenant);
+    if (p.etat === 'combat') animerPoisson(dt);
+    hud(maintenant);
+  }
+  const scene = {
+    etat: p.etat,
+    porteeMax: PORTEE_MAX,
+    flotteur: etat.flotteur,
+    vol: etat.vol,
+    poisson: etat.poissonVisuel,
+    tensionVisuelle: p.etat === 'combat' ? Math.min(1, p.poisson.tension / 100) : etat.charge ? Math.min(1, (performance.now() - etat.charge.depuis) / 1500) : 0,
+  };
+  rendu.dessiner(scene, dt);
+  requestAnimationFrame(boucle);
+}
+
+function animerPoisson(dt) {
+  const f = etat.partie.poisson;
+  const v = etat.poissonVisuel || (etat.poissonVisuel = { d: f.distance, x: 0, tuile: f.tuiles[0], direction: f.direction, alpha: 0.75, taille: 0.6 + f.taille / 120, cadence: 0 });
+  v.d += (f.distance - v.d) * Math.min(1, dt * 3);
+  const cibleX = f.phase === 'rush' ? f.direction * 140 : 0;
+  v.x += (cibleX - v.x) * Math.min(1, dt * (f.phase === 'rush' ? 2.5 : 1));
+  v.direction = f.phase === 'rush' ? f.direction : (v.x > 0 ? -1 : 1);
+  v.cadence += dt * (f.phase === 'rush' ? 8 : 3);
+  v.tuile = f.tuiles[Math.floor(v.cadence) % 2];
+  v.alpha = f.phase === 'rush' ? 0.85 : 0.6;
+  // Le flotteur suit le poisson.
+  etat.flotteur.d = v.d;
+  etat.flotteur.x = v.x * 0.8;
+}
+
+function traiterEvenement(e) {
+  const p = etat.partie;
+  switch (e.type) {
+    case 'plouf': {
+      const pr = projeter(e.portee, PORTEE_MAX, etat.flotteur.x);
+      etat.rendu.plouf(pr.x, pr.y, 0.5 + 0.5 * p.puissance);
+      etat.sons.jouer('plouf');
+      dire(`${Math.round(e.portee)} m`, 1.2);
+      consigneSelonEtat();
+      break;
+    }
+    case 'fremissement':
+      etat.flotteur.agitation = true;
+      etat.flotteur.agitationJusqua = performance.now() + 350;
+      etat.rendu.rond(etat.rendu.positionFlotteur.x, etat.rendu.positionFlotteur.y, 0.5);
+      break;
+    case 'touche':
+      etat.sons.jouer('touche');
+      vibrer([80, 40, 80]);
+      etat.rendu.rond(etat.rendu.positionFlotteur.x, etat.rendu.positionFlotteur.y, 1);
+      dire('TOUCHE !', FENETRE_FERRAGE);
+      consigneSelonEtat();
+      break;
+    case 'rate':
+      dire('Parti avec l’appât…', 2.5);
+      bilan('Raté', 'Il est parti avec l’appât. Il fallait ferrer dans la seconde.', null);
+      break;
+    case 'ferre':
+      dire('Ferré !', 1);
+      consigneSelonEtat();
+      break;
+    case 'rush':
+      etat.sons.jouer('moulinet', 0.4);
+      vibrer(30);
+      break;
+    case 'pompe':
+      etat.sons.jouer('tic', 0.6);
+      break;
+    case 'pompe-contre':
+      dire('Pas pendant qu’il tire !', 1);
+      break;
+    case 'prise': {
+      etat.sons.jouer('prise');
+      vibrer([60, 40, 60, 40, 120]);
+      const record = noter(e.poisson);
+      const q = e.poisson;
+      bilan('Pris !', `${q.nom}, ${q.taille} cm, ${fr(q.poids, 1)} kg.${record ? ' Nouveau record !' : ''}`, q);
+      break;
+    }
+    case 'casse':
+      etat.sons.jouer('casse');
+      vibrer(200);
+      bilan('Cassé', 'La ligne a cédé. Suis le poisson quand il tire, et pompe seulement quand il se calme.', null);
+      break;
+    case 'decroche':
+      etat.sons.jouer('casse', 0.5);
+      bilan('Décroché', 'La ligne est restée molle trop longtemps : il s’est décroché. Pompe quand il se calme.', null);
+      break;
+    default:
+      break;
+  }
+}
+
+function bilan(titre, texte, poisson) {
+  const b = $('#bilan');
+  b.hidden = false;
+  b.className = 'bilan ' + (poisson ? 'prise' : 'perdu');
+  b.innerHTML = `<h2>${titre}</h2>${poisson ? `<img src="assets/img/poissons/${poisson.tuiles[0]}.png" alt="">` : ''}<p>${texte}</p><button id="reprendre" class="principal">Reprendre la canne</button>`;
+  $('#reprendre').addEventListener('click', reprendre);
+  consigne(etat.mode === 'capteurs' ? 'Touche l’écran pour reprendre la canne.' : 'Tape l’écran (ou Espace) pour reprendre.');
+}
+
+function hud(maintenant) {
+  const p = etat.partie;
+  const combat = p.etat === 'combat';
+  $('#hud').hidden = !combat;
+  if (combat) {
+    const f = p.poisson;
+    $('#tension').style.width = `${Math.min(100, f.tension)}%`;
+    $('#tension').className = f.tension > 75 ? 'danger' : f.tension > 45 ? 'alerte' : '';
+    $('#energie').style.width = `${f.energie}%`;
+    $('#distance').textContent = `${Math.max(0, Math.round(f.distance))} m`;
+    const fl = $('#fleche');
+    fl.textContent = f.phase === 'rush' ? (f.direction < 0 ? '◀ il tire à gauche' : 'il tire à droite ▶') : 'il se calme : pompe !';
+    fl.className = f.phase === 'rush' ? 'rush' : 'repos';
+    $('#suivi').style.left = `${50 + p.suivi * 40}%`;
+  }
+  if (etat.message && maintenant > etat.messageJusqua) { etat.message = ''; $('#message').classList.remove('visible'); }
 }
 
 // ---------------------------------------------------------------- démarrage
 
 export async function demarrer() {
-  const canvas = $('#scene');
+  const canvas = $('#lac');
   const images = await chargerImages();
-  rendu = new Rendu(canvas, images);
-  installerPointeur(canvas);
-  installerLecture();
-  $('#lancer').addEventListener('click', lancer);
-  $('#effacer-progression').addEventListener('click', () => {
-    if (!confirm('Effacer le Carnet et recommencer le chapitre ?')) return;
-    etat.progression = { faites: {}, carnet: [] };
-    sauver();
-    choisir(EXPERIENCES[0].id);
+  etat.rendu = new Rendu(canvas, images);
+  installerSecours(canvas);
+  $('#prendre').addEventListener('click', prendreLaCanne);
+  $('#recalibrer').addEventListener('click', () => {
+    try { localStorage.removeItem(CLE_SEUIL); } catch (e) { /* rien */ }
+    etat.calibrage = new Calibrage(3);
+    if (etat.mode === 'capteurs') { montrer('calibrage'); $('#calibrage-compte').textContent = '0 / 3'; $('#calibrage-seuil').textContent = ''; }
   });
-  // On reprend à la première expérience non terminée.
-  const premiere = EXPERIENCES.find((e) => !etat.progression.faites[e.id]) || EXPERIENCES[EXPERIENCES.length - 1];
-  choisir(premiere.id);
-  window.eureka = { etat, choisir, lancer, EXPERIENCES }; // pour les tests navigateur
+  afficherCarnet();
+  montrer('accueil');
+  requestAnimationFrame(boucle);
+  window.touche = { etat, lancer, ferrer, reprendre, commencer, appliquerGeste };
 }
 
 demarrer();

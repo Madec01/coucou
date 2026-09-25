@@ -2,40 +2,47 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Eurêka</title>
-  <meta name="description" content="Un jeu d'expériences : prédire, lancer, regarder, comprendre les lois d'un monde lointain.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Touche !</title>
+  <meta name="description" content="Un jeu de pêche au téléphone : on lance d'un geste, on ferre d'un coup de poignet, on fatigue le poisson en suivant ses rushs.">
+  <meta name="theme-color" content="#1d5f8e">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header class="barre">
-    <h1>Eurêka</h1>
-    <span class="chapitre">Chapitre 1 — La chute</span>
-    <span id="budget"></span>
-    <button id="effacer-progression" class="discret" title="Effacer le Carnet et recommencer">Recommencer</button>
-  </header>
   <main>
-    <section class="paillasse">
-      <canvas id="scene" width="1000" height="600" aria-label="La paillasse"></canvas>
-      <div id="lecture-controles" class="lecture" hidden>
-        <button id="lecture-pause" title="Pause"><img src="assets/img/ui/pause.png" alt="Pause"></button>
-        <button id="lecture-ralenti" title="Caméra rapide : ralenti ×¼"><img src="assets/img/ui/forward.png" alt="Ralenti"> ×¼</button>
-        <button id="lecture-fin" title="Aller à la fin"><img src="assets/img/ui/fastForward.png" alt="Fin"></button>
+    <section class="lac">
+      <canvas id="lac" width="540" height="960" aria-label="Le lac"></canvas>
+      <div id="message" class="message"></div>
+      <div id="hud" class="hud" hidden>
+        <div class="jauge"><span class="etiquette">Tension</span><div class="barre"><div id="tension"></div></div></div>
+        <div class="jauge"><span class="etiquette">Poisson</span><div class="barre energie"><div id="energie"></div></div></div>
+        <div class="ligne"><span id="distance">0 m</span><span id="fleche" class="repos"></span></div>
+        <div class="suivi"><div id="suivi"></div></div>
+      </div>
+      <p id="consigne" class="consigne"></p>
+      <div id="bilan" class="bilan" hidden></div>
+
+      <div class="ecran" data-ecran="accueil">
+        <h1>Touche !</h1>
+        <p>Un lac, une canne, ton téléphone. On lance d’un geste, on ferre d’un coup de poignet, on fatigue le poisson en suivant ses rushs.</p>
+        <button id="prendre" class="principal">Prendre la canne</button>
+        <p class="petit">Sur iPhone, le navigateur demandera l’accès au mouvement. Sur ordinateur, on joue au clavier : Espace pour lancer et ferrer, flèches pour suivre, ↑ pour pomper.</p>
+      </div>
+
+      <div class="ecran" data-ecran="calibrage" hidden>
+        <h1>Échauffement</h1>
+        <p>Fais <b>trois coups de poignet</b>, comme pour ferrer un poisson. Le jeu règle son seuil sur ta main.</p>
+        <p id="calibrage-compte" class="compte">0 / 3</p>
+        <p id="calibrage-seuil" class="petit"></p>
       </div>
     </section>
     <aside class="pupitre">
-      <nav id="experiences" aria-label="Expériences"></nav>
-      <article id="courrier" class="panneau courrier"></article>
-      <section id="montage" class="panneau"></section>
-      <section id="tableau" class="panneau tableau"></section>
-      <button id="lancer" class="principal lancer" disabled>Lancer</button>
-      <section id="resultat" class="panneau resultat" hidden></section>
+      <p id="mode" class="mode" hidden></p>
+      <button id="recalibrer" class="discret">Refaire l’échauffement</button>
+      <section id="carnet" class="carnet"></section>
+      <footer>Touche !, un jeu de Martinus Games — images et sons de <a href="https://kenney.nl">Kenney</a> (CC0). Voir <code>CREDITS.md</code>.</footer>
     </aside>
   </main>
-  <section id="carnet" class="panneau carnet"></section>
-  <footer>
-    <p>Eurêka, un jeu de Martinus Games — sprites, icônes et police de <a href="https://kenney.nl">Kenney</a> (CC0). Voir <code>CREDITS.md</code>.</p>
-  </footer>
   <script type="module" src="src/jeu.js"></script>
 </body>
 </html>

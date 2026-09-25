@@ -1,287 +1,264 @@
-// Le rendu de la paillasse sur un canvas : sprites Kenney (jamais d'image dessinée par
-// le code), dégradés pour la lumière, traînées et particules pour le mouvement.
-//
-// Le moteur parle en mètres, y vers le haut ; ici on convertit en pixels, y vers le bas.
+// Le rendu du lac sur un canvas en portrait. Les images viennent de Kenney (rive, poissons,
+// particules) ; le code compose, anime, teinte et trace la ligne — il ne dessine pas d'image.
 
-const ECHELLE = 100;           // pixels par mètre
-const LARGEUR_M = 10;
-const HAUTEUR_M = 6;
-export const LARGEUR_PX = LARGEUR_M * ECHELLE;
-export const HAUTEUR_PX = HAUTEUR_M * ECHELLE;
-
-const FILTRES = {
-  gris: 'none',
-  rouge: 'sepia(1) saturate(14) hue-rotate(-55deg) brightness(0.8) contrast(1.3)',
-  bleu: 'sepia(1) saturate(30) hue-rotate(180deg) brightness(0.7) contrast(1.2)',
-};
+export const L = 540;
+export const H = 960;
+const HORIZON = 400;
 
 const SOURCES = {
-  bille: 'assets/img/pieces/bille.png',
-  planche: 'assets/img/pieces/planche.png',
-  verre: 'assets/img/pieces/verre.png',
-  metal: 'assets/img/pieces/metal.png',
-  panneau: 'assets/img/ui/panneau_metal.png',
-  plaque: 'assets/img/ui/plaque_metal.png',
-  cible: 'assets/img/ui/target.png',
+  rive: 'assets/img/decor/rive.png',
+  nuage1: 'assets/img/decor/cloud1.png',
+  nuage2: 'assets/img/decor/cloud3.png',
+  soleil: 'assets/img/decor/sun.png',
+  canne: 'assets/img/decor/canne.png',
+  flotteur: 'assets/img/fx/flotteur.png',
+  goutte: 'assets/img/fx/goutte.png',
+  rond: 'assets/img/fx/rond.png',
+  halo: 'assets/img/fx/halo.png',
+  eau: 'assets/img/poissons/fishTile_088.png',
+  rocher: 'assets/img/poissons/fishTile_082.png',
 };
+const TUILES = ['072', '073', '074', '075', '076', '077', '078', '079', '080', '081', '100', '101', '102', '103'];
 
-export function chargerImages(base = '') {
+export function chargerImages() {
   const images = {};
-  return Promise.all(Object.entries(SOURCES).map(([nom, src]) => new Promise((ok) => {
+  const sources = { ...SOURCES };
+  for (const t of TUILES) sources[`fishTile_${t}`] = `assets/img/poissons/fishTile_${t}.png`;
+  return Promise.all(Object.entries(sources).map(([nom, src]) => new Promise((ok) => {
     const img = new Image();
     img.onload = () => { images[nom] = img; ok(); };
     img.onerror = () => { images[nom] = null; ok(); };
-    img.src = base + src;
+    img.src = src;
   }))).then(() => images);
 }
 
-const px = (x) => x * ECHELLE;
-const py = (y) => HAUTEUR_PX - y * ECHELLE;
+/** Position à l'écran d'un point du lac à `d` mètres du bord, pour une portée max donnée. */
+export function projeter(d, porteeMax, x = 0) {
+  const u = Math.max(0, Math.min(1, d / porteeMax));
+  const y = H - 90 - (H - 90 - HORIZON - 24) * Math.pow(u, 0.75);
+  const echelle = 1 - 0.65 * u;
+  return { x: L / 2 + x * echelle, y, echelle };
+}
 
 export class Rendu {
   constructor(canvas, images) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.images = images;
+    this.particules = [];
+    this.ronds = [];
     this.teintes = {};
+    this.temps = 0;
   }
 
-  /** Une bille recolorée une fois pour toutes (le filtre canvas coûte cher à chaque image). */
-  bille(couleur) {
-    if (this.teintes[couleur]) return this.teintes[couleur];
-    const src = this.images.bille;
+  flotteurTeinte() {
+    if (this.teintes.flotteur) return this.teintes.flotteur;
+    const src = this.images.flotteur;
     if (!src) return null;
     const c = document.createElement('canvas');
     c.width = src.width; c.height = src.height;
     const g = c.getContext('2d');
-    g.filter = FILTRES[couleur] || 'none';
+    g.filter = 'sepia(1) saturate(14) hue-rotate(-55deg) brightness(0.85) contrast(1.3)';
     g.drawImage(src, 0, 0);
-    this.teintes[couleur] = c;
+    this.teintes.flotteur = c;
     return c;
   }
 
+  /** Une ombre de poisson : le sprite assombri et bleui, pour le voir sous l'eau. */
+  ombre(tuile) {
+    const cle = 'ombre-' + tuile;
+    if (this.teintes[cle]) return this.teintes[cle];
+    const src = this.images[tuile];
+    if (!src) return null;
+    const c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    const g = c.getContext('2d');
+    g.filter = 'brightness(0.35) saturate(0.4) sepia(0.3) hue-rotate(170deg)';
+    g.drawImage(src, 0, 0);
+    this.teintes[cle] = c;
+    return c;
+  }
+
+  plouf(x, y, force = 1) {
+    for (let i = 0; i < 14 * force; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+      const v = 120 + Math.random() * 220 * force;
+      this.particules.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vie: 0.6 + Math.random() * 0.4, taille: 6 + Math.random() * 10 });
+    }
+    this.ronds.push({ x, y, r: 6, vie: 1.2, echelle: 1 });
+  }
+
+  rond(x, y, echelle = 1) { this.ronds.push({ x, y, r: 4, vie: 1.0, echelle }); }
+
   /**
-   * Dessine la scène.
-   * options = { image (état des corps), monde, chrono: { t, fige }, fantome: [points], trainee: [points], cible }
+   * scene = { etat, porteeMax, flotteur: { d, x, plongee, agitation }, vol: { u, depart, arrivee }, poisson: { d, x, tuile, direction, alpha }, tensionVisuelle }
    */
-  dessiner(monde, options = {}) {
-    const { ctx } = this;
-    ctx.clearRect(0, 0, LARGEUR_PX, HAUTEUR_PX);
-    this.fond();
-    this.sol();
-    for (const d of monde.dessins || []) this.piece(d);
-    if (options.fantome && options.fantome.length > 1) this.trajet(options.fantome, 'rgba(255,255,255,0.25)', [6, 8]);
-    if (options.trainee && options.trainee.length > 1) this.trainee(options.trainee);
-    const etat = options.image ? options.image.corps : monde.corps.map((c) => ({ x: c.x, y: c.y, angle: 0 }));
-    monde.corps.forEach((c, i) => this.corps(c, etat[i]));
-    for (const d of monde.dessins || []) if (d.etiquette) this.etiquette(d);
-    if (options.chrono) this.chrono(options.chrono);
-    if (options.courbe) this.courbe(options.courbe);
-  }
-
-  fond() {
-    const { ctx } = this;
-    // Le hublot : un ciel étranger, dégradé du violet profond au vert pâle de l'horizon.
-    const ciel = ctx.createLinearGradient(0, 0, 0, HAUTEUR_PX);
-    ciel.addColorStop(0, '#141a33');
-    ciel.addColorStop(0.55, '#26355a');
-    ciel.addColorStop(1, '#5a7f86');
-    ctx.fillStyle = ciel;
-    ctx.fillRect(0, 0, LARGEUR_PX, HAUTEUR_PX);
-    // Une lune large et basse, en halo.
-    const lune = ctx.createRadialGradient(780, 150, 20, 780, 150, 260);
-    lune.addColorStop(0, 'rgba(220,235,255,0.35)');
-    lune.addColorStop(0.35, 'rgba(180,210,240,0.12)');
-    lune.addColorStop(1, 'rgba(180,210,240,0)');
-    ctx.fillStyle = lune;
-    ctx.fillRect(0, 0, LARGEUR_PX, HAUTEUR_PX);
-    // La lampe de paillasse : une chaleur ambrée qui vient d'en haut à gauche.
-    const lampe = ctx.createRadialGradient(150, 0, 10, 150, 0, 700);
-    lampe.addColorStop(0, 'rgba(255,200,120,0.25)');
-    lampe.addColorStop(1, 'rgba(255,200,120,0)');
-    ctx.fillStyle = lampe;
-    ctx.fillRect(0, 0, LARGEUR_PX, HAUTEUR_PX);
-    // Repères de hauteur, tous les mètres.
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    for (let m = 1; m < HAUTEUR_M; m++) {
-      ctx.beginPath(); ctx.moveTo(0, py(m)); ctx.lineTo(LARGEUR_PX, py(m)); ctx.stroke();
-      ctx.fillText(`${m} m`, 6, py(m) - 4);
-    }
-    ctx.textAlign = 'center';
-    for (let m = 1; m < LARGEUR_M; m++) ctx.fillText(`${m}`, px(m), HAUTEUR_PX - 4);
-  }
-
-  sol() {
+  dessiner(scene, dt) {
+    this.temps += dt;
     const { ctx, images } = this;
-    const img = images.plaque || images.panneau;
-    const h = 0.3 * ECHELLE;
-    if (img) {
-      const l = 0.5 * ECHELLE;
-      for (let x = 0; x < LARGEUR_PX; x += l) ctx.drawImage(img, x, HAUTEUR_PX - h, l, h);
-    }
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(0, HAUTEUR_PX - h, LARGEUR_PX, h);
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillRect(0, HAUTEUR_PX - h, LARGEUR_PX, 2);
+    ctx.clearRect(0, 0, L, H);
+    this.ciel();
+    this.eau();
+    if (scene.poisson) this.poisson(scene);
+    this.rondsEtParticules(dt);
+    if (scene.flotteur) this.flotteur(scene);
+    this.canneEtLigne(scene);
   }
 
-  piece(d) {
+  ciel() {
     const { ctx, images } = this;
-    if (d.type === 'rampe') {
-      const img = images.planche;
-      const x1 = px(d.x1), y1 = py(d.y1), x2 = px(d.x2), y2 = py(d.y2);
-      const l = Math.hypot(x2 - x1, y2 - y1);
-      const a = Math.atan2(y2 - y1, x2 - x1);
-      const e = 0.22 * ECHELLE;
-      ctx.save();
-      ctx.translate(x1, y1); ctx.rotate(a);
-      if (img) ctx.drawImage(img, -4, 0, l + 8, e); else { ctx.fillStyle = '#8b5a2b'; ctx.fillRect(-4, 0, l + 8, e); }
-      ctx.restore();
-      // Le pied de la rampe : une planche de bois debout, du sol jusque sous la rampe.
-      const pied = images.planche;
-      const hp = py(0) - 0.3 * ECHELLE - (y1 + e * 0.5);
-      if (pied) {
-        ctx.save();
-        ctx.translate(x1 + 0.25 * ECHELLE, y1 + e * 0.5);
-        ctx.rotate(Math.PI / 2);
-        ctx.drawImage(pied, 0, -0.1 * ECHELLE, hp, 0.2 * ECHELLE);
-        ctx.restore();
-      }
-    } else if (d.type === 'becher') {
-      const img = images.verre;
-      const x = px(d.x), l = d.largeur * ECHELLE, h = d.hauteur * ECHELLE, e = 0.1 * ECHELLE;
+    const g = ctx.createLinearGradient(0, 0, 0, HORIZON);
+    g.addColorStop(0, '#5fb8ec');
+    g.addColorStop(1, '#cfeeff');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, L, HORIZON);
+    if (images.soleil) ctx.drawImage(images.soleil, L - 150, 40, 90, 90);
+    if (images.nuage1) ctx.drawImage(images.nuage1, ((this.temps * 8) % (L + 300)) - 300, 60, 200, 70);
+    if (images.nuage2) ctx.drawImage(images.nuage2, ((this.temps * 5 + 250) % (L + 300)) - 300, 140, 160, 56);
+    if (images.rive) {
+      // La rive : la forêt du fond de Kenney, cadrée pour que ses arbres bordent l'horizon.
+      ctx.drawImage(images.rive, 0, 400, 1024, 415, 0, HORIZON - 208, L, 208);
+    }
+  }
+
+  eau() {
+    const { ctx, images } = this;
+    const g = ctx.createLinearGradient(0, HORIZON, 0, H);
+    g.addColorStop(0, '#8ed3f0');
+    g.addColorStop(0.35, '#4aa3d4');
+    g.addColorStop(1, '#1d5f8e');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, HORIZON, L, H - HORIZON);
+    // La ligne d'eau : les tuiles d'eau du pack, en frise sur l'horizon.
+    if (images.eau) {
       ctx.save();
       ctx.globalAlpha = 0.9;
-      if (img) {
-        ctx.drawImage(img, x - l / 2 - e / 2, py(d.hauteur), e, h);
-        ctx.drawImage(img, x + l / 2 - e / 2, py(d.hauteur), e, h);
-        ctx.drawImage(img, x - l / 2 - e / 2, py(0) - e * 0.6, l + e, e * 0.6);
-      }
-      ctx.globalAlpha = 0.18;
-      ctx.fillStyle = '#bfe8ff';
-      ctx.fillRect(x - l / 2, py(d.hauteur), l, h);
+      for (let x = 0; x < L; x += 40) ctx.drawImage(images.eau, x, HORIZON - 6, 40, 40);
       ctx.restore();
-    } else if (d.type === 'lacher') {
-      // La pince de lâcher : une petite plaque de métal au-dessus de la bille.
-      const img = images.metal;
-      const x = px(d.x), y = py(d.y + 0.5);
-      if (img) ctx.drawImage(img, x - 0.2 * ECHELLE, y - 0.3 * ECHELLE, 0.4 * ECHELLE, 0.2 * ECHELLE);
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-      ctx.setLineDash([3, 5]);
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y - 0.3 * ECHELLE); ctx.stroke();
-      ctx.setLineDash([]);
     }
+    // Reflets : des bandes claires qui glissent lentement.
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 9; i++) {
+      const y = HORIZON + 30 + i * 58 + Math.sin(this.temps * 0.8 + i) * 6;
+      const l = 120 + i * 30;
+      const x = ((this.temps * (10 + i * 3) + i * 90) % (L + l)) - l;
+      ctx.fillRect(x, y, l, 3 + i * 0.6);
+    }
+    ctx.restore();
+    // La berge, tout en bas : une bande sombre et deux rochers.
+    const berge = ctx.createLinearGradient(0, H - 70, 0, H);
+    berge.addColorStop(0, 'rgba(40,60,40,0)');
+    berge.addColorStop(1, 'rgba(30,45,30,0.9)');
+    ctx.fillStyle = berge;
+    ctx.fillRect(0, H - 70, L, 70);
+    if (images.rocher) { ctx.drawImage(images.rocher, 30, H - 64, 64, 64); ctx.drawImage(images.rocher, L - 120, H - 58, 56, 56); }
   }
 
-  etiquette(d) {
+  flotteur(scene) {
     const { ctx } = this;
-    ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    const x = px(d.x), y = py(d.y + 0.5) - 0.35 * ECHELLE;
-    ctx.fillRect(x - 24, y - 16, 48, 20);
+    const f = scene.flotteur;
+    let p, echelle;
+    if (scene.vol) {
+      // Une cloche entre le bout de la canne et le point d'arrivée.
+      const u = scene.vol.u;
+      const a = scene.vol.depart, b = scene.vol.arrivee;
+      p = { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u - Math.sin(u * Math.PI) * 260 };
+      echelle = 1 - 0.5 * u;
+    } else {
+      const pr = projeter(f.d, scene.porteeMax, f.x);
+      const bob = Math.sin(this.temps * 2.2) * 2.5 * pr.echelle;
+      const agit = f.agitation ? Math.sin(this.temps * 40) * 4 : 0;
+      p = { x: pr.x + agit, y: pr.y + bob + (f.plongee || 0) * 18 * pr.echelle };
+      echelle = pr.echelle;
+    }
+    this.positionFlotteur = p;
+    const img = this.flotteurTeinte();
+    const t = 30 * echelle;
+    ctx.save();
+    if (f.plongee) ctx.globalAlpha = 0.6;
+    if (img) ctx.drawImage(img, p.x - t / 2, p.y - t / 2, t, t);
+    // Le petit reflet blanc du flotteur.
+    ctx.globalAlpha = 0.5;
     ctx.fillStyle = '#fff';
-    ctx.fillText(d.etiquette, x, y - 1);
-  }
-
-  corps(c, e) {
-    const { ctx } = this;
-    const img = this.bille(c.couleur);
-    const r = c.r * ECHELLE;
-    const x = px(e.x), y = py(e.y);
-    // Ombre portée au sol, qui rétrécit avec la hauteur.
-    const h = Math.max(0, e.y - c.r);
-    const k = Math.max(0.25, 1 - h / 6);
-    ctx.fillStyle = `rgba(0,0,0,${0.25 * k})`;
-    ctx.beginPath(); ctx.ellipse(x, py(0) - 2, r * k, r * 0.25 * k, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(-e.angle);
-    if (img) ctx.drawImage(img, -r, -r, 2 * r, 2 * r);
-    else { ctx.fillStyle = '#ccc'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); }
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + t * 0.55, t * 0.5, t * 0.16, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
-  trajet(points, couleur, tirets) {
+  poisson(scene) {
     const { ctx } = this;
+    const q = scene.poisson;
+    const pr = projeter(q.d, scene.porteeMax, q.x);
+    const img = this.ombre(q.tuile);
+    if (!img) return;
+    const t = 110 * pr.echelle * q.taille;
     ctx.save();
-    ctx.strokeStyle = couleur;
-    ctx.lineWidth = 2;
-    ctx.setLineDash(tirets);
-    ctx.beginPath();
-    points.forEach((p, i) => (i ? ctx.lineTo(px(p.x), py(p.y)) : ctx.moveTo(px(p.x), py(p.y))));
-    ctx.stroke();
+    ctx.globalAlpha = q.alpha;
+    ctx.translate(pr.x, pr.y + 26 * pr.echelle);
+    if (q.direction < 0) ctx.scale(-1, 1);
+    ctx.drawImage(img, -t / 2, -t / 2, t, t);
     ctx.restore();
-  }
-
-  /** La traînée : des points qui s'effacent derrière la bille. */
-  trainee(points) {
-    const { ctx } = this;
-    const n = points.length;
-    for (let i = 0; i < n; i++) {
-      const p = points[i];
-      const a = (i / n) * 0.6;
-      ctx.fillStyle = `rgba(255,240,200,${a})`;
-      ctx.beginPath(); ctx.arc(px(p.x), py(p.y), 2 + 3 * (i / n), 0, Math.PI * 2); ctx.fill();
+    if (Math.random() < 0.15) {
+      this.particules.push({ x: pr.x + (Math.random() - 0.5) * t * 0.6, y: pr.y + 20, vx: 0, vy: -30, vie: 0.8, taille: 4 + Math.random() * 4, bulle: true });
     }
   }
 
-  chrono({ t, fige }) {
-    const { ctx } = this;
-    ctx.save();
-    ctx.fillStyle = 'rgba(10,14,30,0.75)';
-    ctx.fillRect(LARGEUR_PX - 190, 14, 176, 44);
-    ctx.strokeStyle = fige ? '#ffd27a' : 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(LARGEUR_PX - 190, 14, 176, 44);
-    ctx.fillStyle = fige ? '#ffd27a' : '#e8f0ff';
-    ctx.font = '600 24px ui-monospace, Menlo, Consolas, monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${t.toFixed(3).replace('.', ',')} s`, LARGEUR_PX - 24, 45);
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText('CHRONO', LARGEUR_PX - 182, 30);
-    ctx.restore();
+  rondsEtParticules(dt) {
+    const { ctx, images } = this;
+    for (const r of this.ronds) {
+      r.vie -= dt;
+      r.r += 60 * dt * r.echelle;
+      if (images.rond) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, r.vie) * 0.5;
+        ctx.drawImage(images.rond, r.x - r.r, r.y - r.r * 0.35, r.r * 2, r.r * 0.7);
+        ctx.restore();
+      }
+    }
+    this.ronds = this.ronds.filter((r) => r.vie > 0);
+    for (const p of this.particules) {
+      p.vie -= dt;
+      if (!p.bulle) p.vy += 500 * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (images.goutte) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, p.vie)) * 0.8;
+        ctx.drawImage(images.goutte, p.x - p.taille / 2, p.y - p.taille / 2, p.taille, p.taille);
+        ctx.restore();
+      }
+    }
+    this.particules = this.particules.filter((p) => p.vie > 0);
   }
 
-  /** Le petit graphique de la marge : la hauteur de la bille au fil du temps. */
-  courbe({ points, tMax, hMax }) {
-    const { ctx } = this;
-    const L = 200, H = 110, X = LARGEUR_PX - L - 14, Y = 70;
-    ctx.save();
-    ctx.fillStyle = 'rgba(10,14,30,0.7)';
-    ctx.fillRect(X, Y, L, H);
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.strokeRect(X, Y, L, H);
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('hauteur (m)', X + 6, Y + 14);
-    ctx.textAlign = 'right';
-    ctx.fillText('temps (s)', X + L - 6, Y + H - 6);
-    if (points.length > 1) {
-      ctx.strokeStyle = '#ffd27a';
-      ctx.lineWidth = 2;
+  canneEtLigne(scene) {
+    const { ctx, images } = this;
+    const tension = scene.tensionVisuelle || 0;
+    // La canne : une planche de bois debout, en bas à droite, qui plie avec la tension.
+    const base = { x: L - 60, y: H + 10 };
+    const angle = -Math.PI / 2 + 0.35 + tension * 0.35 * (scene.etat === 'combat' ? 1 : 0.2);
+    const longueur = 330;
+    const bout = { x: base.x + Math.cos(angle) * longueur, y: base.y + Math.sin(angle) * longueur };
+    if (images.canne) {
+      ctx.save();
+      ctx.translate(base.x, base.y);
+      ctx.rotate(angle);
+      ctx.drawImage(images.canne, 0, -9, longueur, 18);
+      ctx.restore();
+    }
+    this.boutDeCanne = bout;
+    const cible = this.positionFlotteur;
+    if (cible && scene.flotteur) {
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,255,255,${0.35 + tension * 0.5})`;
+      ctx.lineWidth = 1.5 + tension;
       ctx.beginPath();
-      points.forEach((p, i) => {
-        const x = X + 8 + (p.t / tMax) * (L - 16);
-        const y = Y + H - 8 - (p.h / hMax) * (H - 26);
-        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-      });
+      ctx.moveTo(bout.x, bout.y);
+      // Une ligne qui pend un peu quand elle est molle, droite quand elle tire.
+      const mx = (bout.x + cible.x) / 2, my = (bout.y + cible.y) / 2 + (1 - tension) * 40;
+      ctx.quadraticCurveTo(mx, my, cible.x, cible.y);
       ctx.stroke();
+      ctx.restore();
     }
-    ctx.restore();
-  }
-
-  /** Coordonnées de scène (mètres) d'un événement pointeur. */
-  versMetres(ev) {
-    const r = this.canvas.getBoundingClientRect();
-    const x = ((ev.clientX - r.left) / r.width) * LARGEUR_M;
-    const y = (1 - (ev.clientY - r.top) / r.height) * HAUTEUR_M;
-    return { x, y };
   }
 }

@@ -1,40 +1,20 @@
-# Eurêka — un jeu d'expériences
+# Touche ! — la pêche au téléphone
 
-> Tu es le nouveau chercheur d'une station posée sur un monde lointain, dont les lois ne sont pas tout
-> à fait les nôtres. On te confie des questions ; tu montes une expérience, tu prédis ce qui va se
-> passer, tu lances, tu regardes, tu corriges. Chaque expérience terminée écrit une page du Carnet, et
-> chaque page révèle un peu mieux les lois de ce monde.
+> Un lac, une canne, ton téléphone. On lance d'un geste, on ferre d'un coup de poignet, on fatigue
+> le poisson en suivant ses rushs.
 
-Jeu de prédiction et de découverte, jouable dans un navigateur, en français. Le concept complet est
-dans `docs/CONCEPT_EUREKA.md`.
+Jeu de pêche au geste, jouable dans un navigateur, en français. Site statique : aucune installation,
+aucune compilation, aucune dépendance. GitHub Pages sert le dépôt tel quel (`index.html` à la racine).
 
 ## État du jeu
 
-**Première tranche jouable** (25 septembre 2026) : le chapitre 1, « La chute », en cinq expériences.
-
-1. **Dans le bécher** — une bille dévale une rampe ; on place le bécher là où l'on pense qu'elle retombera (prédiction *pointer*).
-2. **Le chrono** — on chiffre le temps de chute depuis 4 m à ±0,05 s (prédiction *chiffrer*).
-3. **Deux billes** — lourde ou légère, laquelle arrive en premier ? (prédiction *choisir*).
-4. **La rouge et la bleue** — même question, deux couleurs. Elles n'arrivent pas ensemble. C'est la première fissure.
-5. **La loi de la couleur** — mesurer la pesanteur de chaque couleur à 5 % près, en assemblant la formule au tableau noir par blocs (prédiction *mesurer*).
-
-Chaque expérience a un budget de lancements. Le Carnet se remplit de ce que le joueur a mesuré, jamais
-de ce que le jeu sait. La progression est gardée dans le navigateur.
-
-Ce qui n'y est pas encore : les sons, le ressort, les étoiles « sobre » et « vite », le chapitre 2, le
-service worker. Voir `FEUILLE_DE_ROUTE.md`.
-
-## Un second prototype dans ce dépôt : Touche !
-
-Le dossier `touche/` contient un jeu de pêche au téléphone, posé ici le temps de le tester sur un vrai
-appareil : on lance d'un geste, on ferre d'un coup de poignet, on fatigue le poisson en inclinant et en
-pompant. Voir `touche/README.md`. Il a vocation à vivre dans son propre dépôt.
+**Prototype jouable** (25 septembre 2026) : un poste de pêche, sept espèces, le lancer, la touche, le
+ferrage et le combat au geste, le carnet de pêche. Reste à régler les seuils sur de vrais téléphones
+(voir `FEUILLE_DE_ROUTE.md`).
 
 ## Jouer
 
-Le jeu est un site statique : aucune installation, aucune compilation, aucune dépendance.
-
-- **En ligne** : servez le dépôt tel quel. GitHub Pages fonctionne directement (tous les chemins sont relatifs, `index.html` à la racine).
+- **En ligne** : servez le dépôt tel quel. Les capteurs exigent HTTPS ; GitHub Pages convient.
 - **En local** : depuis la racine du dépôt, lancez un serveur statique puis ouvrez l'adresse indiquée.
 
 ```bash
@@ -44,18 +24,44 @@ python3 -m http.server 8080
 
 ## Comment on joue
 
-1. **Le courrier** pose une question, avec un objectif, une tolérance et un budget de lancements.
-2. **Le montage** : on règle les pièces (hauteur de lâcher, position du bécher, couleur de la bille). Le bécher se glisse aussi directement sur la paillasse.
-3. **Le tableau noir** : on écrit ce que l'on attend — un endroit, un nombre, un choix, ou une formule à blocs évaluée sur les mesures.
-4. **Lancer** : l'expérience se joue ; pause, ralenti ×¼ (la caméra rapide) et saut à la fin. Le chrono s'arrête au premier contact avec le sol, la courbe de hauteur se trace dans la marge.
-5. **La lecture** compare prédit et mesuré. Réussi : une page s'ajoute au Carnet et l'expérience suivante s'ouvre. Raté : on corrige, la trajectoire précédente reste en fantôme.
+1. **Prendre la canne.** Sur iPhone, le navigateur demande l'accès au mouvement (obligatoire depuis
+   iOS 13, et seulement en HTTPS). Sur Android, rien à demander.
+2. **L'échauffement** : trois coups de poignet. Le jeu mesure ta main et règle son seuil de ferrage
+   dessus (la médiane des trois pics, un peu moins de la moitié). Le seuil est gardé ; « Refaire
+   l'échauffement » le remet à zéro.
+3. **Lancer** : balance le téléphone vers l'avant. Le pic d'accélération fait la distance (8 à 48 m).
+   Plus loin, les poissons sont plus gros et plus rares.
+4. **Attendre** : le flotteur frémit parfois pour rien. Ferrer sur un frémissement effraie le poisson
+   et repousse la touche.
+5. **Touche !** : le flotteur plonge, le téléphone vibre (Android), le son sonne. Tu as 0,8 s pour
+   **ferrer** d'un coup de poignet.
+6. **Le combat** : quand le poisson tire à gauche ou à droite, **incline le téléphone du même côté**
+   pour le suivre, sinon la tension monte et la ligne casse. Quand il se calme, **lève puis rabaisse**
+   le téléphone pour pomper : chaque pompage le ramène et le fatigue. Pomper pendant qu'il tire fait
+   bondir la tension. Laisser la ligne molle trop longtemps le décroche.
+7. **Pris !** : espèce, taille, poids, record par espèce dans le carnet (gardé dans le navigateur).
+
+Sans capteurs (ordinateur, permission refusée) : maintenir le doigt ou Espace pour charger le lancer,
+taper ou Espace pour ferrer, glisser ou flèches pour suivre, glisser vers le haut ou ↑ pour pomper.
+
+## Ce qu'il y a dedans
+
+- `src/gestes.js` — détecteur de pics (ferrage, lancer), détecteur de pompage, calibrage, interprète.
+  Pur, testé en Node.
+- `src/partie.js` — la machine à états et les règles du combat (tension, énergie, distance). Pure.
+- `src/poissons.js` — sept espèces du pack poissons de Kenney, portée, taille, poids.
+- `src/capteurs.js` — `devicemotion` et `deviceorientation`, permission iOS, gravité retirée par
+  filtre si le navigateur ne donne pas l'accélération linéaire.
+- `src/rendu.js` — le lac sur canvas : rive et poissons de Kenney, particules pour le plouf et les
+  bulles, ronds dans l'eau, ligne qui pend ou qui tire.
+- `src/jeu.js` — écrans, entrées de secours, HUD, carnet.
 
 ## Vérifier
 
 ```bash
-tools/suite.sh court     # tests Node (moteur, expériences) + test de fumée navigateur (le chapitre entier)
-tools/suite.sh complet   # pareil, plus une capture de chaque expérience dans docs/releve/
+tools/suite.sh court     # tests Node (gestes, partie, poissons) + fumée navigateur (une prise aux capteurs simulés, une au clavier)
+tools/suite.sh complet   # pareil, plus les captures des moments clés dans docs/releve/
 ```
 
-Le moteur est déterministe : même montage, même trace. C'est ce qui rend la prédiction honnête et les
-tests rejouables sans navigateur.
+Le test de fumée dispatche de vrais événements `devicemotion` dans Chromium : le chemin des capteurs
+est testé sans téléphone. Ce qui ne se teste pas d'ici, c'est la sensation en main.

@@ -1,4 +1,4 @@
-# Eurêka — règles de travail
+# Touche ! — règles de travail
 
 ## Communication
 
@@ -46,16 +46,16 @@
 
 ## Vérifier plutôt que supposer
 
-- Mesurer avant de trancher. Le moteur est déterministe : une trace se rejoue en Node, sans
-  navigateur, et c'est là qu'on vérifie une intuition sur une trajectoire ou un temps.
-- Tout changement dans `src/lois.js` ou `src/experiences.js` impose de rejouer les cinq expériences
-  (`node --test tests/`) : une loi qui bouge change les réponses attendues.
+- Mesurer avant de trancher. Les gestes et la partie sont purs : on rejoue un signal de capteur ou
+  un combat en Node, sans navigateur, et c'est là qu'on vérifie une intuition sur un seuil.
+- Les seuils des gestes (`src/gestes.js`) ne se règlent que sur des mesures faites sur un vrai
+  téléphone, notées dans le journal.
 - Les tests en deux vitesses, par `tools/suite.sh` :
-  - **`tools/suite.sh court`** (~30 s) avant **chaque** poussée : les tests Node (moteur, expériences,
-    tableau noir) et `tests/gate.js` comme test de fumée — il charge tout le jeu dans Chromium et
-    joue le chapitre entier, donc un module cassé s'y voit.
-  - **`tools/suite.sh complet`** quand le changement touche le rendu ou l'interface : en plus, une
-    capture de chaque expérience dans `docs/releve/`, à regarder.
+  - **`tools/suite.sh court`** (~1 min) avant **chaque** poussée : les tests Node (gestes, partie,
+    poissons) et `tests/gate.js` comme test de fumée — il charge le jeu dans Chromium, dispatche de
+    vrais événements de capteurs et va jusqu'à une prise, puis rejoue au clavier.
+  - **`tools/suite.sh complet`** quand le changement touche le rendu ou l'interface : en plus, les
+    captures des moments clés dans `docs/releve/`, à regarder.
   - Le script lance lui-même le serveur statique du port 8765 s'il manque.
-- Pour juger un rendu, `node tools/capture.js <dossier>` photographie chaque expérience au montage,
-  en vol et à la lecture.
+- Pour juger un rendu, `node tools/capture.js <dossier>` photographie l'accueil, l'attente, la
+  touche, le combat et la prise.
