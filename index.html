@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eurêka</title>
+  <meta name="description" content="Un jeu d'expériences : prédire, lancer, regarder, comprendre les lois d'un monde lointain.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="barre">
+    <h1>Eurêka</h1>
+    <span class="chapitre">Chapitre 1 — La chute</span>
+    <span id="budget"></span>
+    <button id="effacer-progression" class="discret" title="Effacer le Carnet et recommencer">Recommencer</button>
+  </header>
+  <main>
+    <section class="paillasse">
+      <canvas id="scene" width="1000" height="600" aria-label="La paillasse"></canvas>
+      <div id="lecture-controles" class="lecture" hidden>
+        <button id="lecture-pause" title="Pause"><img src="assets/img/ui/pause.png" alt="Pause"></button>
+        <button id="lecture-ralenti" title="Caméra rapide : ralenti ×¼"><img src="assets/img/ui/forward.png" alt="Ralenti"> ×¼</button>
+        <button id="lecture-fin" title="Aller à la fin"><img src="assets/img/ui/fastForward.png" alt="Fin"></button>
+      </div>
+    </section>
+    <aside class="pupitre">
+      <nav id="experiences" aria-label="Expériences"></nav>
+      <article id="courrier" class="panneau courrier"></article>
+      <section id="montage" class="panneau"></section>
+      <section id="tableau" class="panneau tableau"></section>
+      <button id="lancer" class="principal lancer" disabled>Lancer</button>
+      <section id="resultat" class="panneau resultat" hidden></section>
+    </aside>
+  </main>
+  <section id="carnet" class="panneau carnet"></section>
+  <footer>
+    <p>Eurêka, un jeu de Martinus Games — sprites, icônes et police de <a href="https://kenney.nl">Kenney</a> (CC0). Voir <code>CREDITS.md</code>.</p>
+  </footer>
+  <script type="module" src="src/jeu.js"></script>
+</body>
+</html>
