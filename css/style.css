@@ -20,6 +20,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; background: var(--fond); color: var(--texte); font-family: var(--corps); line-height: 1.45; }
 body { min-height: 100vh; }
 h1, h2, h3 { font-family: var(--titre); font-weight: normal; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
