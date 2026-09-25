@@ -153,7 +153,7 @@ Pistes écartées : cabinet de curiosités XIXe, garage de gamin.
 - Le moteur doit être **déterministe** : même montage, même résultat. C'est ce qui rend la prédiction
   honnête et les tests automatisables (on peut rejouer chaque expérience de référence sans navigateur).
 
-## 10. Première tranche jouable (proposition)
+## 10. Première tranche jouable (livrée le 25 septembre, voir `README.md`)
 
 Objectif : vérifier en une semaine de travail que la boucle *prédire → lancer → lire* est amusante,
 avant d'investir dans le contenu.

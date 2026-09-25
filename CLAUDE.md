@@ -46,19 +46,16 @@
 
 ## Vérifier plutôt que supposer
 
-- Mesurer avant de trancher. Les deux plus grosses erreurs du projet venaient d'une
-  intuition non vérifiée : l'échelle des étoiles et la projection des tuiles.
-- Tout changement dans `assets/` impose `python3 tools/version_assets.py` (le cache du service worker
-  porte cette empreinte ; `tools/suite.sh` refuse de tourner si elle n'est pas à jour).
-- Toute modification qui touche au score impose un recalibrage :
-  `node tools/calibrate.js 4 1-30 --write`.
+- Mesurer avant de trancher. Le moteur est déterministe : une trace se rejoue en Node, sans
+  navigateur, et c'est là qu'on vérifie une intuition sur une trajectoire ou un temps.
+- Tout changement dans `src/lois.js` ou `src/experiences.js` impose de rejouer les cinq expériences
+  (`node --test tests/`) : une loi qui bouge change les réponses attendues.
 - Les tests en deux vitesses, par `tools/suite.sh` :
-  - **`tools/suite.sh court`** (~1 min 30) avant **chaque** poussée : les quatre tests Node
-    (règles, événements, nuage, reprise) et `gate.js` comme test de fumée — il charge tout
-    le jeu dans Chromium et joue quelques îles, donc un module cassé s'y voit.
-  - **`tools/suite.sh complet`** (~5 min, les tests navigateur par trois) quand le changement touche les règles, le score,
-    la sauvegarde, l'interface ou la tournée finale, et une fois par séance de travail avant
-    la dernière poussée.
+  - **`tools/suite.sh court`** (~30 s) avant **chaque** poussée : les tests Node (moteur, expériences,
+    tableau noir) et `tests/gate.js` comme test de fumée — il charge tout le jeu dans Chromium et
+    joue le chapitre entier, donc un module cassé s'y voit.
+  - **`tools/suite.sh complet`** quand le changement touche le rendu ou l'interface : en plus, une
+    capture de chaque expérience dans `docs/releve/`, à regarder.
   - Le script lance lui-même le serveur statique du port 8765 s'il manque.
-- Pour juger un rendu, `node tools/capture_partie.js <île> <fichier>` joue une partie
-  entière et photographie le paysage seul.
+- Pour juger un rendu, `node tools/capture.js <dossier>` photographie chaque expérience au montage,
+  en vol et à la lecture.
