@@ -1,4 +1,4 @@
-# Paillasse — règles de travail
+# Eurêka — règles de travail
 
 ## Communication
 

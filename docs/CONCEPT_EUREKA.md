@@ -1,17 +1,19 @@
-# Paillasse — concept d'un jeu d'expériences
+# Eurêka — concept d'un jeu d'expériences
 
 > Première mise à plat, 25 septembre 2026. Point de départ du commanditaire : « on serait un chercheur
 > et on fait des expériences. Le but est de terminer une expérience. On fait les calculs, on ajoute des
 > choses et ensuite on lance, on visualise l'expérience, et ainsi de suite. »
 >
 > Ce document propose de quoi étoffer l'idée : le fantasme, la boucle, ce qui rend le calcul amusant,
-> une première tranche jouable, et les décisions à prendre. Rien n'est figé. « Paillasse » est un nom
-> de travail.
+> une première tranche jouable, et les décisions prises. Le jeu s'appelle **Eurêka**.
+>
+> Décisions du commanditaire (25 septembre) : lois décalées, ton « station lointaine », vue de côté,
+> nom « Eurêka ». Le §11 garde la trace des questions et de ce qui a été choisi.
 
 ## 1. Le pitch
 
-Tu es le nouveau chercheur d'un laboratoire posé dans un monde dont les lois ne sont pas tout à fait
-les nôtres. On te confie des questions ; tu montes une expérience sur la paillasse, tu prédis ce qui
+Tu es le nouveau chercheur d'une station posée sur un monde lointain, dont les lois ne sont pas tout
+à fait les nôtres. On te confie des questions ; tu montes une expérience sur la paillasse, tu prédis ce qui
 va se passer, tu lances, tu regardes, tu corriges. Chaque expérience terminée écrit une page de plus
 dans le Carnet, et chaque page révèle un peu mieux les lois de ce monde.
 
@@ -123,17 +125,21 @@ avec une nouvelle aile du laboratoire.
 - **Le courrier** : les questions arrivent par lettres ; certaines sont optionnelles (défis d'un
   collègue rival, commande d'un mécène pressé qui paie bien mais donne peu de lancements).
 
-## 8. Le ton
+## 8. Le ton : la station lointaine
 
-Trois pistes, une à choisir :
+Choisi par le commanditaire. Une station de recherche posée sur un monde étranger : cela justifie
+naturellement les lois décalées (on est venu *pour* les comprendre) et donne un cadre à l'histoire.
 
-- **Cabinet de curiosités** (recommandé) : XIXe siècle rêvé, cuivre, bois, encre, cahiers à
-  carreaux. Les lettres ont de la tenue, les instruments de la patine. Bien servi par les banques
-  libres (papiers, textures, gravures du domaine public).
-- **Garage de gamin** : cartons, ruban adhésif, science du samedi. Plus chaleureux, plus proche de
-  « on ajoute des choses ».
-- **Station lointaine** : un labo posé sur un monde étranger, qui justifie naturellement les lois
-  décalées. Plus froid, plus mystérieux.
+- **Le lieu** : une station modulaire, hublots sur un paysage qu'on ne comprend pas encore, une aile
+  qui s'ouvre par chapitre. Dehors, une lumière qui n'est pas la nôtre.
+- **Les gens** : la directrice de station (elle pose les questions), un collègue rival (défis
+  optionnels), la Terre qui écrit de loin (les mécènes pressés). Tout passe par le courrier.
+- **La matière** : métal brossé, verre, écrans à cadre, papier thermique pour le Carnet. Sobre, un
+  peu froid, avec une chaleur qui vient des lampes de paillasse et des lueurs des expériences.
+- **Le mystère** : chaque loi découverte dit quelque chose du monde dehors. Le fil rouge, à écrire
+  plus tard : pourquoi ces lois, et qui était là avant.
+
+Pistes écartées : cabinet de curiosités XIXe, garage de gamin.
 
 ## 9. Ce que l'on peut faire techniquement, dans les règles de la maison
 
@@ -171,18 +177,18 @@ avant d'investir dans le contenu.
 Ce qu'on mesure à la fin de la tranche : est-ce qu'on relance *pour voir* ? Est-ce que la fissure de
 l'expérience 4 fait sourire ? Est-ce que le tableau noir est un jeu ou un formulaire ?
 
-## 11. Les décisions à prendre
+## 11. Les décisions
 
-| # | Question | Recommandation par défaut |
+| # | Question | Décision |
 |---|---|---|
-| 1 | Lois réelles ou lois décalées ? | Décalées, avec un chapitre 1 presque réel. |
-| 2 | Le ton | Cabinet de curiosités. |
-| 3 | Vue de côté (2D physique) ou vue de dessus (plus proche d'un plateau) ? | De côté : la chute et le balancier s'y lisent mieux. |
-| 4 | Le coût des lancements : budget par expérience, ou temps de laboratoire global ? | Budget par expérience, plus lisible ; le global viendra si un mode « carrière » s'impose. |
-| 5 | Où vit le projet : ce dépôt ou un dépôt à part ? | Un dépôt à part, mêmes règles de travail (ce `CLAUDE.md` copié tel quel). |
-| 6 | Le nom | « Paillasse » pour travailler ; « Eurêka », « Protocole », « Les lois d'ailleurs » en réserve. |
+| 1 | Lois réelles ou lois décalées ? | **Décalées**, avec un chapitre 1 presque réel (commanditaire, 25 septembre). |
+| 2 | Le ton | **Station lointaine** (commanditaire, 25 septembre). |
+| 3 | Vue de côté ou vue de dessus ? | **De côté** (commanditaire, 25 septembre). |
+| 4 | Le coût des lancements : budget par expérience, ou temps global ? | Budget par expérience (valeur par défaut, à confirmer en jouant). |
+| 5 | Où vit le projet ? | Ce dépôt, `Madec01/coucou`, mêmes règles de travail que Cent Saisons. |
+| 6 | Le nom | **Eurêka** (commanditaire, 25 septembre). |
 
 ## 12. Ce que ce document n'est pas
 
-Pas une feuille de route, pas un cahier des charges. C'est la matière à discuter. La prochaine étape
-raisonnable est de trancher les décisions 1, 3 et 5, puis de faire la tranche du §10.
+Pas une feuille de route, pas un cahier des charges. C'est la matière de départ. La suite est dans
+`FEUILLE_DE_ROUTE.md` : la tranche jouable du §10.
